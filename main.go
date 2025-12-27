@@ -11,6 +11,15 @@ type apiConfig struct {
 	fileServerHit atomic.Int32
 }
 
+const metricsTemplate = `
+<html>
+  <body>
+    <h1>Welcome, Chirpy Admin</h1>
+    <p>Chirpy has been visited %d times!</p>
+  </body>
+</html>
+`
+
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cfg.fileServerHit.Add(1)
@@ -21,8 +30,10 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
 	hits := cfg.fileServerHit.Load()
 
-	w.Header().Set("Content-Type", "text/plain")
-	_, err := w.Write([]byte(fmt.Sprintf("Hits: %d", hits)))
+	w.Header().Set("Content-Type", "text/html")
+
+	html := fmt.Sprintf(metricsTemplate, hits)
+	_, err := w.Write([]byte(html))
 	if err != nil {
 		return
 	}
@@ -50,12 +61,12 @@ func main() {
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(prefixStrip))
 
 	// Metrics
-	mux.HandleFunc("/metrics", apiCfg.handlerMetrics)
+	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 
 	// Reset
-	mux.HandleFunc("/reset", apiCfg.resetMetrics)
+	mux.HandleFunc("POST /admin/reset", apiCfg.resetMetrics)
 
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte("OK"))
 		if err != nil {
